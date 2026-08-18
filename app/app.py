@@ -89,7 +89,8 @@ def _build_messages(
     few_shot: list[tuple[str, str]] | None = None,
 ) -> list[dict]:
     """Build a messages list for /v1/chat/completions."""
-    final_system = system_override.strip() if system_override.strip() else system_prompt
+    override = (system_override or "").strip()
+    final_system = override if override else system_prompt
     msgs: list[dict] = [{"role": "system", "content": final_system}]
     for u, a in (few_shot or []):
         msgs.append({"role": "user", "content": u})
