@@ -32,9 +32,9 @@ Outputs are saved under `outputs/plain/`, `outputs/ideogram/`, and `outputs/mini
 ## Installation (Pinokio)
 
 1. Click **Install** from the Pinokio app page.
-   This creates a Python virtual environment (`env/`), installs Python dependencies (`gradio`, `httpx`, `jsonschema`), and downloads a CUDA-enabled `llama-server` binary from the latest `llama.cpp` release.
+   This creates a Python virtual environment (`env/`), installs Python dependencies (`gradio`, `httpx`, `jsonschema`), downloads a CUDA-enabled `llama-server` binary from the latest `llama.cpp` release, and downloads a vision-capable default model — [Huihui-Qwen3-VL-4B-Instruct-abliterated](https://huggingface.co/noctrex/Huihui-Qwen3-VL-4B-Instruct-abliterated-GGUF) (`Huihui-Qwen3-VL-4B-Instruct-abliterated-Q4_K_M.gguf`, ~2.5 GB) plus its vision projector (`mmproj-F16.gguf`, ~836 MB) — into `models/`.
 
-2. Add one or more `.gguf` model files to the `models/` folder (inside this app directory).
+2. Optionally add more `.gguf` model files to the `models/` folder (inside this app directory).
    You can use any instruction-tuned GGUF model, e.g.:
    - `Qwen3-8B-Q4_K_M.gguf`
    - `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
@@ -42,13 +42,42 @@ Outputs are saved under `outputs/plain/`, `outputs/ideogram/`, and `outputs/mini
 
 3. Click **Start** — the Gradio UI opens in Pinokio.
 
+### Manual install
+
+```bash
+pip install -r app/requirements.txt
+python app/llama_setup.py   # downloads a CUDA-enabled llama-server binary
+
+# Download the default vision-capable model + projector
+hf download noctrex/Huihui-Qwen3-VL-4B-Instruct-abliterated-GGUF \
+  Huihui-Qwen3-VL-4B-Instruct-abliterated-Q4_K_M.gguf --local-dir models
+
+hf download noctrex/Huihui-Qwen3-VL-4B-Instruct-abliterated-GGUF \
+  mmproj-F16.gguf --local-dir models
+
+cd app && python app.py
+```
+
 ---
 
 ## First run
 
-1. Start the app; it auto-loads the first `.gguf` model it finds in `models/`.
+1. Start the app; it auto-loads the first non-mmproj `.gguf` model it finds in `models/`.
 2. Wait for the status badge to show **Ready** (or click **Load Model** manually if you want a different model).
 3. Use any of the three tabs to generate prompts.
+
+---
+
+## Vision — steering generation with a reference image
+
+Any tab with a **Reference image** field (Plain Text, Ideogram 4) lets you upload, paste, or drag-and-drop an image alongside your text description; the vision-language model looks at the image and uses it — together with your text — to steer the generated prompt.
+
+Image input requires a vision-capable model **and** its matching multimodal projector (`mmproj`) file:
+
+- Place both the model (e.g. `Huihui-Qwen3-VL-4B-Instruct-abliterated-Q4_K_M.gguf`) and its projector (e.g. `mmproj-F16.gguf`) in the `models/` folder.
+- Files whose name starts with `mmproj` are treated as projectors, not selectable chat models — they're excluded from the **Model** dropdown but auto-detected and attached (via `llama-server --mmproj`) whenever a model in the same folder is loaded.
+- The status badge shows `👁️ vision` once a projector is attached and the server is ready.
+- If you upload an image without a vision-capable model loaded, the app shows a warning instead of sending the request (llama-server would otherwise reject image content on a text-only model).
 
 ---
 
@@ -105,7 +134,7 @@ pinokio.js         Pinokio app manifest
 install.js         One-time install (creates venv, pip install)
 start.js           Daemon launch (starts Gradio server)
 update.js          Update (git pull + pip install --upgrade)
-models/            Place .gguf files here
+models/            Place .gguf files here (models + optional mmproj-*.gguf projector for vision)
 app/
   app.py           Gradio UI (main entry point)
   llama_server.py  llama-server process manager + HTTP client

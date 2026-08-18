@@ -44,6 +44,7 @@ _status_message = ""
 _server_port = DEFAULT_PORT
 _server_model = ""
 _server_ctx = DEFAULT_CTX_SIZE
+_server_mmproj = ""
 
 _LOG_LINES: list[str] = []
 _LOG_MAX = 200
@@ -89,6 +90,8 @@ def get_status() -> dict:
         "model": _server_model,
         "port": _server_port,
         "ctx_size": _server_ctx,
+        "mmproj": _server_mmproj,
+        "vision": bool(_server_mmproj),
         "log": list(_LOG_LINES),
     }
 
@@ -98,7 +101,7 @@ def get_log_tail(n: int = 50) -> str:
 
 
 def stop_server() -> str:
-    global _proc, _status, _status_message, _server_model
+    global _proc, _status, _status_message, _server_model, _server_mmproj
     with _lock:
         if _proc is None:
             _status = "stopped"
@@ -114,6 +117,7 @@ def stop_server() -> str:
         _status = "stopped"
         _status_message = ""
         _server_model = ""
+        _server_mmproj = ""
     return "Server stopped."
 
 
@@ -123,14 +127,19 @@ def start_server(
     ctx_size: int = DEFAULT_CTX_SIZE,
     n_gpu_layers: int = DEFAULT_N_GPU_LAYERS,
     llama_server_bin: Optional[str] = None,
+    mmproj_path: Optional[str] = None,
 ) -> str:
     """
     Start llama-server with the given model.
 
     llama_server_bin: explicit path to the llama-server binary.
     If None, we search PATH for 'llama-server' (or 'llama-server.exe').
+
+    mmproj_path: optional path to a multimodal projector (mmproj) .gguf file.
+    When provided, llama-server is started with ``--mmproj`` so it can accept
+    image inputs (vision-capable models such as Qwen3-VL / LLaVA-style GGUFs).
     """
-    global _proc, _status, _status_message, _server_port, _server_model, _server_ctx
+    global _proc, _status, _status_message, _server_port, _server_model, _server_ctx, _server_mmproj
 
     # Stop any existing server first
     stop_server()
@@ -159,6 +168,20 @@ def start_server(
         return _status_message
     # trusted_model_path comes from our own directory scan, NOT from user input
     trusted_model_path = trusted_models[str(model_path)]
+
+    # --- Validate mmproj_path (optional vision projector) ---
+    # Same trust model as above: only paths found by our own directory scan
+    # are ever used in the subprocess call.
+    trusted_mmproj_path: Optional[Path] = None
+    if mmproj_path and str(mmproj_path).strip():
+        if str(mmproj_path) not in trusted_models:
+            _status = "error"
+            _status_message = (
+                "mmproj file not found in the models directory. "
+                "Use the Refresh button to update the model list."
+            )
+            return _status_message
+        trusted_mmproj_path = trusted_models[str(mmproj_path)]
 
     # --- Locate the llama-server binary ---
     # When the user provides an explicit path, it must be an absolute path to
@@ -198,6 +221,8 @@ def start_server(
         "--alias", "local-model",
         "-ngl", str(int(n_gpu_layers)),
     ]
+    if trusted_mmproj_path is not None:
+        cmd += ["--mmproj", str(trusted_mmproj_path)]
 
     _append_log(f"[manager] Starting: {' '.join(str(c) for c in cmd)}")
     with _lock:
@@ -206,6 +231,7 @@ def start_server(
         _server_port = port
         _server_model = str(trusted_model_path)
         _server_ctx = ctx_size
+        _server_mmproj = str(trusted_mmproj_path) if trusted_mmproj_path is not None else ""
         _LOG_LINES.clear()
 
     try:

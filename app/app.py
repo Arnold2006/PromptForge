@@ -67,8 +67,35 @@ _history: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 
 def _scan_models() -> list[str]:
-    files = sorted(MODELS_DIR.glob("**/*.gguf"))
+    files = sorted(
+        f for f in MODELS_DIR.glob("**/*.gguf") if not f.name.lower().startswith("mmproj")
+    )
     return [str(f) for f in files] if files else []
+
+
+def _scan_mmproj_files() -> list[str]:
+    """Vision projector (mmproj) files, e.g. mmproj-F16.gguf, found anywhere in MODELS_DIR."""
+    files = sorted(f for f in MODELS_DIR.glob("**/*.gguf") if f.name.lower().startswith("mmproj"))
+    return [str(f) for f in files]
+
+
+def _find_mmproj_for(model_path: str) -> str | None:
+    """Best-effort match of a vision projector file for the given model.
+
+    Prefers an mmproj file that lives alongside the model; falls back to the
+    first mmproj file found anywhere under MODELS_DIR (mirrors how a single
+    vision model + projector pair, e.g. Qwen3-VL + mmproj-F16.gguf, is
+    typically laid out).
+    """
+    mmprojs = _scan_mmproj_files()
+    if not mmprojs:
+        return None
+    if model_path:
+        model_dir = str(Path(model_path).parent)
+        same_dir = [m for m in mmprojs if str(Path(m).parent) == model_dir]
+        if same_dir:
+            return same_dir[0]
+    return mmprojs[0]
 
 
 def _add_history(tab: str, text: str) -> None:
@@ -152,6 +179,10 @@ def _build_user_content(user_message: str, image_b64: str | None, mime_type: str
 # Shared generation call
 # ---------------------------------------------------------------------------
 
+def _vision_ready() -> bool:
+    return bool(llama_server.get_status().get("vision"))
+
+
 def _generate(
     system_prompt: str,
     user_message: str,
@@ -166,6 +197,13 @@ def _generate(
 ) -> tuple[bool, str]:
     if not user_message.strip():
         return False, "⚠️ Please enter a description before generating."
+    if image_b64 and not _vision_ready():
+        return False, (
+            "⚠️ A reference image was provided, but the loaded model has no vision "
+            "projector (mmproj) attached. Add an mmproj-*.gguf file next to your "
+            "vision-capable model (e.g. Huihui-Qwen3-VL-4B-Instruct-abliterated + "
+            "mmproj-F16.gguf) in the models folder, then reload the model."
+        )
     msgs = _build_messages(system_prompt, user_message, system_override, few_shot)
     # Inject image into the last user message when provided
     if image_b64:
@@ -198,12 +236,17 @@ def load_model(
     if not model_path:
         yield "⚠️ No model selected. Add .gguf files to the models folder first."
         return
-    yield f"⏳ Starting llama-server with {Path(model_path).name}…"
+    mmproj_path = _find_mmproj_for(model_path)
+    if mmproj_path:
+        yield f"⏳ Starting llama-server with {Path(model_path).name} (vision: {Path(mmproj_path).name})…"
+    else:
+        yield f"⏳ Starting llama-server with {Path(model_path).name}…"
     msg = llama_server.start_server(
         model_path=model_path,
         ctx_size=int(ctx_size),
         n_gpu_layers=int(n_gpu_layers),
         llama_server_bin=llama_bin.strip() or None,
+        mmproj_path=mmproj_path,
     )
     st = llama_server.get_status()
     icon = "✅" if st["status"] == "ready" else "❌" if st["status"] == "error" else "⏳"
@@ -217,8 +260,9 @@ def stop_server_cb() -> str:
 def get_status_badge() -> str:
     st = llama_server.get_status()
     status = st["status"]
+    vision_tag = " | 👁️ vision" if st.get("vision") else ""
     if status == "ready":
-        return f"✅ Ready — {Path(st['model']).name if st['model'] else 'unknown'} | port {st['port']} | ctx {st['ctx_size']}"
+        return f"✅ Ready — {Path(st['model']).name if st['model'] else 'unknown'} | port {st['port']} | ctx {st['ctx_size']}{vision_tag}"
     if status == "loading":
         return f"⏳ Loading…"
     if status == "error":
@@ -238,6 +282,7 @@ def _autostart_server_if_possible() -> None:
     if not models:
         return
     default_bin = get_default_llama_server_bin()
+    mmproj_path = _find_mmproj_for(models[0])
 
     def _run() -> None:
         llama_server.start_server(
@@ -245,6 +290,7 @@ def _autostart_server_if_possible() -> None:
             ctx_size=DEFAULT_CTX_SIZE,
             n_gpu_layers=DEFAULT_N_GPU_LAYERS,
             llama_server_bin=default_bin,
+            mmproj_path=mmproj_path,
         )
 
     threading.Thread(target=_run, daemon=True).start()
@@ -350,6 +396,13 @@ def generate_ideogram(
 
     user_msg = _ideogram_user_message(description, aspect_ratio, style_steer)
     image_b64, mime_type = _encode_image(reference_image)
+    if image_b64 and not _vision_ready():
+        msg = (
+            "⚠️ A reference image was provided, but the loaded model has no vision "
+            "projector (mmproj) attached. Add an mmproj-*.gguf file next to your "
+            "vision-capable model in the models folder, then reload the model."
+        )
+        return msg, "", _history_text("ideogram"), get_status_badge()
     msgs = _build_messages(
         IDEOGRAM_SYSTEM_PROMPT,
         user_msg,
@@ -557,7 +610,7 @@ def build_ui() -> gr.Blocks:
                     choices=model_choices,
                     value=model_choices[0] if model_choices else None,
                     scale=4,
-                    info=f"Scanning: {MODELS_DIR}",
+                    info=f"Scanning: {MODELS_DIR} (an mmproj-*.gguf file found in this folder is auto-attached for vision)",
                 )
                 refresh_btn = gr.Button("🔄 Refresh", scale=1)
             with gr.Row():
