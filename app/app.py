@@ -129,6 +129,19 @@ def _build_messages(
     return msgs
 
 
+def _strip_code_fence(text: str) -> str:
+    """Strip a leading/trailing markdown code fence (e.g. ```text ... ```) if present."""
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return text
+    if stripped.endswith("```"):
+        stripped = stripped[:-3].rstrip()
+    lines = stripped.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    return "\n".join(lines).strip()
+
+
 def _safe_json_parse(text: str) -> tuple[bool, object]:
     """Try to extract and parse JSON from LLM output."""
     text = text.strip()
@@ -553,6 +566,7 @@ def generate_minimax(
         top_p=top_p,
     )
     if ok:
+        result = _strip_code_fence(result)
         _add_history("minimax", result)
     return result, _history_text("minimax"), get_status_badge()
 
