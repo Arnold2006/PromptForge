@@ -61,6 +61,11 @@ def _score_asset(name: str) -> int:
     return score
 
 
+def _is_supported_archive(name: str) -> bool:
+    n = name.lower()
+    return n.endswith(".zip") or n.endswith(".tar.gz")
+
+
 def _download_file(url: str, dest: Path) -> None:
     req = urllib.request.Request(url, headers={"User-Agent": "PromptForge/1.0"})
     with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310
@@ -112,34 +117,44 @@ def ensure_cuda_llama_server() -> str:
         release = json.loads(resp.read().decode("utf-8"))
 
     assets = release.get("assets") or []
-    best = None
-    best_score = -1
+    preferred_assets: list[dict[str, str | int]] = []
+    fallback_assets: list[dict[str, str | int]] = []
     for asset in assets:
         name = (asset.get("name") or "").strip()
         url = asset.get("browser_download_url")
         if not name or not url:
             continue
+        if not _is_supported_archive(name):
+            continue
         score = _score_asset(name)
-        if score > best_score:
-            best_score = score
-            best = {"name": name, "url": url}
+        entry = {"name": name, "url": url, "score": score}
+        if score >= 25:
+            preferred_assets.append(entry)
+        elif score >= 12:
+            fallback_assets.append(entry)
 
-    if not best or best_score < 25:
+    if not preferred_assets:
         raise RuntimeError("No suitable CUDA llama.cpp binary asset found in latest release.")
+
+    preferred_assets.sort(key=lambda item: int(item["score"]), reverse=True)
+    fallback_assets.sort(key=lambda item: int(item["score"]), reverse=True)
+    candidates = preferred_assets[:6] + fallback_assets[:6]
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        archive = tmp_path / best["name"]
-        _download_file(best["url"], archive)
         extract_dir = LLAMA_RUNTIME_DIR / "release"
-        if extract_dir.exists():
-            shutil.rmtree(extract_dir)
-        _extract_archive(archive, extract_dir)
-        found = _find_llama_server(extract_dir)
-        if not found:
-            raise RuntimeError("Downloaded llama.cpp release does not contain llama-server.")
-        _write_cached_bin(found)
-        return found
+        for candidate in candidates:
+            archive = tmp_path / str(candidate["name"])
+            _download_file(str(candidate["url"]), archive)
+            if extract_dir.exists():
+                shutil.rmtree(extract_dir)
+            _extract_archive(archive, extract_dir)
+            found = _find_llama_server(extract_dir)
+            if found:
+                _write_cached_bin(found)
+                return found
+
+    raise RuntimeError("Downloaded llama.cpp releases do not contain llama-server for this platform.")
 
 
 def get_default_llama_server_bin() -> str | None:
