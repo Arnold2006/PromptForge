@@ -231,18 +231,25 @@ def generate_plain(
     max_tokens: int,
     top_p: float,
 ) -> tuple[str, str, str]:
-    parts = [description.strip()]
+    description = (description or "").strip()
+    subject = (subject or "").strip()
+    style = (style or "").strip()
+    lighting = (lighting or "").strip()
+    composition = (composition or "").strip()
+    negative_hint = (negative_hint or "").strip()
+
+    parts = [description]
     hints = []
-    if subject.strip():
-        hints.append(f"Subject: {subject.strip()}")
-    if style.strip():
-        hints.append(f"Style: {style.strip()}")
-    if lighting.strip():
-        hints.append(f"Lighting: {lighting.strip()}")
-    if composition.strip():
-        hints.append(f"Composition: {composition.strip()}")
-    if negative_hint.strip():
-        hints.append(f"Negative hints (for a separate Negative: line): {negative_hint.strip()}")
+    if subject:
+        hints.append(f"Subject: {subject}")
+    if style:
+        hints.append(f"Style: {style}")
+    if lighting:
+        hints.append(f"Lighting: {lighting}")
+    if composition:
+        hints.append(f"Composition: {composition}")
+    if negative_hint:
+        hints.append(f"Negative hints (for a separate Negative: line): {negative_hint}")
     if hints:
         parts.append("\n" + "\n".join(hints))
     user_msg = "\n".join(parts)
