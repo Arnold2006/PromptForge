@@ -16,6 +16,7 @@ Shared top panel:
 from __future__ import annotations
 
 import base64
+import inspect
 import json
 import os
 import sys
@@ -518,6 +519,21 @@ def save_minimax(text: str) -> str:
 
 ASPECT_RATIOS = ["1:1", "4:3", "3:2", "16:9", "21:9", "2:3", "3:4", "9:16"]
 
+
+def _copy_button_kwargs() -> dict:
+    """Return Textbox kwargs that enable a copy button, compatible across Gradio versions.
+
+    Newer Gradio releases (5.x+) replaced the ``show_copy_button`` argument on
+    ``gr.Textbox`` with ``buttons=["copy"]``. Older releases don't accept ``buttons``.
+    Inspect the live signature so the app works regardless of installed version.
+    """
+    params = inspect.signature(gr.Textbox.__init__).parameters
+    if "buttons" in params:
+        return {"buttons": ["copy"]}
+    if "show_copy_button" in params:
+        return {"show_copy_button": True}
+    return {}
+
 CSS = """
 #status-badge {font-weight:bold;padding:6px 12px;border-radius:6px;background:#2a2a2a;}
 .gen-btn {min-width:160px;}
@@ -600,7 +616,7 @@ def build_ui() -> gr.Blocks:
                         )
                         plain_gen_btn = gr.Button("✨ Generate Prompt", variant="primary", elem_classes="gen-btn")
                     with gr.Column(scale=3):
-                        plain_out_tb  = gr.Textbox(label="Generated prompt", lines=8, show_copy_button=True)
+                        plain_out_tb  = gr.Textbox(label="Generated prompt", lines=8, **_copy_button_kwargs())
                         with gr.Row():
                             plain_save_btn = gr.Button("💾 Save to .txt")
                             plain_save_st  = gr.Textbox(label="", show_label=False, interactive=False, scale=3)
@@ -647,7 +663,7 @@ def build_ui() -> gr.Blocks:
                         ideo_out_tb = gr.Textbox(
                             label="Generated JSON caption", lines=20,
                             placeholder="JSON will appear here…",
-                            show_copy_button=True,
+                            **_copy_button_kwargs(),
                         )
                         with gr.Row():
                             ideo_save_btn = gr.Button("💾 Save to .json")
@@ -713,7 +729,7 @@ def build_ui() -> gr.Blocks:
                         mm_out_tb = gr.Textbox(
                             label="Generated MiniMax H3 prompt", lines=20,
                             placeholder="Prompt will appear here…",
-                            show_copy_button=True,
+                            **_copy_button_kwargs(),
                         )
                         with gr.Row():
                             mm_save_btn = gr.Button("💾 Save to .txt")
