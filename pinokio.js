@@ -1,7 +1,7 @@
 const path = require("path");
 module.exports = {
   version: "3.7",
-  title: "AI Prompt Studio",
+  title: "PromptForge",
   description: "A local prompt-writing assistant for Ideogram 4, MiniMax H3 video, and plain-text image models, powered by a local LLM (llama-server).",
   icon: "icon.png",
   menu: async (kernel, info) => {
@@ -32,7 +32,7 @@ module.exports = {
           return [{
             default: true,
             icon: "fa-solid fa-rocket",
-            text: "Open AI Prompt Studio",
+            text: "Open PromptForge",
             href: local.url,
             popout: true,
           }, {

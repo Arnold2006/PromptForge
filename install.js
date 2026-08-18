@@ -7,6 +7,7 @@ module.exports = {
         venv: "env",
         message: [
           "uv pip install -r app/requirements.txt",
+          "python app/llama_setup.py",
         ],
       },
     },

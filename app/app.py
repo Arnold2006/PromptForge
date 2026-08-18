@@ -1,5 +1,5 @@
 """
-AI Prompt Studio — main Gradio application.
+PromptForge — main Gradio application.
 
 Tabs:
   1. Plain Text   — natural-language prompts for Flux/Z-Image/etc.
@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +31,7 @@ APP_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(APP_DIR))
 
 import llama_server
+from llama_setup import get_default_llama_server_bin
 from llama_server import DEFAULT_CTX_SIZE, DEFAULT_N_GPU_LAYERS
 from ideogram_schema import IDEOGRAM_SCHEMA
 from normalize import normalize_caption, serialize_caption
@@ -191,6 +193,26 @@ def get_status_badge() -> str:
 
 def get_server_log() -> str:
     return llama_server.get_log_tail(80)
+
+
+def _autostart_server_if_possible() -> None:
+    st = llama_server.get_status()
+    if st["status"] in ("ready", "loading"):
+        return
+    models = _scan_models()
+    if not models:
+        return
+    default_bin = get_default_llama_server_bin()
+
+    def _run() -> None:
+        llama_server.start_server(
+            model_path=models[0],
+            ctx_size=DEFAULT_CTX_SIZE,
+            n_gpu_layers=DEFAULT_N_GPU_LAYERS,
+            llama_server_bin=default_bin,
+        )
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
@@ -735,8 +757,10 @@ CSS = """
 """
 
 def build_ui() -> gr.Blocks:
-    with gr.Blocks(title="AI Prompt Studio") as demo:
-        gr.Markdown("# 🎨 AI Prompt Studio\nLocal prompt generator for Ideogram 4, MiniMax H3, and plain-text image models.")
+    model_choices = _scan_models()
+    default_llama_bin = get_default_llama_server_bin() or ""
+    with gr.Blocks(title="PromptForge") as demo:
+        gr.Markdown("# 🎨 PromptForge\nLocal prompt generator for Ideogram 4, MiniMax H3, and plain-text image models.")
 
         # ------------------------------------------------------------------ #
         # TOP PANEL — Server management + shared settings
@@ -746,8 +770,8 @@ def build_ui() -> gr.Blocks:
             with gr.Row():
                 model_dd = gr.Dropdown(
                     label="Model (.gguf)",
-                    choices=_scan_models(),
-                    value=None,
+                    choices=model_choices,
+                    value=model_choices[0] if model_choices else None,
                     scale=4,
                     info=f"Scanning: {MODELS_DIR}",
                 )
@@ -756,7 +780,7 @@ def build_ui() -> gr.Blocks:
                 ctx_slider = gr.Slider(512, 131072, value=DEFAULT_CTX_SIZE, step=512, label="Context size")
                 ngl_slider = gr.Slider(-1, 200, value=DEFAULT_N_GPU_LAYERS, step=1,
                                        label="GPU layers (-1=auto, 0=CPU only)")
-                llama_bin_tb = gr.Textbox(label="llama-server binary path (blank = PATH)", value="", scale=2,
+                llama_bin_tb = gr.Textbox(label="llama-server binary path (blank = PATH)", value=default_llama_bin, scale=2,
                                           placeholder="e.g. /usr/local/bin/llama-server")
             with gr.Row():
                 load_btn  = gr.Button("▶ Load Model", variant="primary", scale=2)
@@ -1020,6 +1044,7 @@ def build_ui() -> gr.Blocks:
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
+    _autostart_server_if_possible()
     demo = build_ui()
     demo.launch(
         server_name="127.0.0.1",

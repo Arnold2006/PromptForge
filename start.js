@@ -5,7 +5,10 @@ module.exports = {
       method: "shell.run",
       params: {
         venv: "env",
-        message: ["python app/app.py"],
+        message: [
+          "python app/llama_setup.py",
+          "python app/app.py",
+        ],
         on: [{
           event: "/http:\\/\\/[^\\s\\/]+:\\d{2,5}(?=[^\\w]|$)/",
           done: true,

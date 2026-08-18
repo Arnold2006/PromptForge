@@ -1,4 +1,4 @@
-# AI Prompt Studio
+# PromptForge
 
 A local prompt-writing assistant for:
 - **Plain-text image prompts** (Flux, Z-Image, and similar diffusion models)
@@ -24,7 +24,7 @@ Outputs are saved under `outputs/plain/`, `outputs/ideogram/`, and `outputs/mini
 ## Requirements
 
 - [Pinokio](https://github.com/pinokiocomputer/pinokio) v3.7+ installed.
-- `llama-server` binary (from [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases)) somewhere in your `PATH`, **or** specify its full path in the "llama-server binary path" field.
+- NVIDIA CUDA-capable GPU recommended (the installer fetches a CUDA-enabled `llama.cpp` release automatically).
 - At least one `.gguf` model file in the `models/` folder.
 
 ---
@@ -32,7 +32,7 @@ Outputs are saved under `outputs/plain/`, `outputs/ideogram/`, and `outputs/mini
 ## Installation (Pinokio)
 
 1. Click **Install** from the Pinokio app page.
-   This creates a Python virtual environment (`env/`) and installs the Python dependencies (`gradio`, `httpx`, `jsonschema`).
+   This creates a Python virtual environment (`env/`), installs Python dependencies (`gradio`, `httpx`, `jsonschema`), and downloads a CUDA-enabled `llama-server` binary from the latest `llama.cpp` release.
 
 2. Add one or more `.gguf` model files to the `models/` folder (inside this app directory).
    You can use any instruction-tuned GGUF model, e.g.:
@@ -46,8 +46,8 @@ Outputs are saved under `outputs/plain/`, `outputs/ideogram/`, and `outputs/mini
 
 ## First run
 
-1. In the **Model Server** panel at the top, select your `.gguf` file from the dropdown.
-2. Click **Load Model**. Wait for the status badge to show **Ready**.
+1. Start the app; it auto-loads the first `.gguf` model it finds in `models/`.
+2. Wait for the status badge to show **Ready** (or click **Load Model** manually if you want a different model).
 3. Use any of the three tabs to generate prompts.
 
 ---
