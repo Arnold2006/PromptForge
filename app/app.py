@@ -30,6 +30,7 @@ APP_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(APP_DIR))
 
 import llama_server
+from llama_server import DEFAULT_CTX_SIZE, DEFAULT_N_GPU_LAYERS
 from ideogram_schema import IDEOGRAM_SCHEMA
 from normalize import normalize_caption, serialize_caption
 from validate import validate_caption
@@ -734,7 +735,7 @@ CSS = """
 """
 
 def build_ui() -> gr.Blocks:
-    with gr.Blocks(title="AI Prompt Studio", css=CSS) as demo:
+    with gr.Blocks(title="AI Prompt Studio") as demo:
         gr.Markdown("# 🎨 AI Prompt Studio\nLocal prompt generator for Ideogram 4, MiniMax H3, and plain-text image models.")
 
         # ------------------------------------------------------------------ #
@@ -802,7 +803,7 @@ def build_ui() -> gr.Blocks:
                             plain_neg_tb   = gr.Textbox(label="Negative hints", placeholder="No text, no watermarks")
                         plain_gen_btn = gr.Button("✨ Generate Prompt", variant="primary", elem_classes="gen-btn")
                     with gr.Column(scale=3):
-                        plain_out_tb  = gr.Textbox(label="Generated prompt", lines=8, show_copy_button=True)
+                        plain_out_tb  = gr.Textbox(label="Generated prompt", lines=8)
                         with gr.Row():
                             plain_save_btn = gr.Button("💾 Save to .txt")
                             plain_save_st  = gr.Textbox(label="", show_label=False, interactive=False, scale=3)
@@ -844,7 +845,7 @@ def build_ui() -> gr.Blocks:
                     with gr.Column(scale=3):
                         ideo_out_tb = gr.Textbox(
                             label="Generated JSON caption", lines=20,
-                            show_copy_button=True, placeholder="JSON will appear here…"
+                            placeholder="JSON will appear here…"
                         )
                         with gr.Row():
                             ideo_save_btn = gr.Button("💾 Save to .json")
@@ -932,7 +933,7 @@ def build_ui() -> gr.Blocks:
                     with gr.Column(scale=3):
                         mm_out_tb = gr.Textbox(
                             label="Generated MiniMax H3 prompt", lines=20,
-                            show_copy_button=True, placeholder="Prompt will appear here…"
+                            placeholder="Prompt will appear here…"
                         )
                         with gr.Row():
                             mm_save_btn = gr.Button("💾 Save to .txt")
@@ -1025,4 +1026,5 @@ if __name__ == "__main__":
         server_port=port,
         share=False,
         show_error=True,
+        css=CSS,
     )
